@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"time"
 	"util"
 )
 
@@ -100,6 +99,56 @@ func (tc *TcpServer) run() {
 }
 
 func saveInfo(info util.Info) {
-	ssql := "insert into avgload (host,load1,load5,load15,created_time) values (?,?,?,?,?)"
-	db.Exec(ssql, info.Ip, info.Avg1min, info.Avg5min, info.Avg15min, time.Now().Unix())
+	statsfields := []string{
+		"host",
+		"load1",
+		"load5",
+		"load15",
+		"buffers",
+		"cached",
+		"memtotal",
+		"memfree",
+		"swaptotal",
+		"swapused",
+		"swapfree",
+		"created_time"}
+	statsvalues := []string{}
+	for i := 0; i < len(statsfields); i++ {
+		statsvalues = append(statsvalues, "?")
+	}
+	statssql := fmt.Sprintf("insert into stats (%s) values (%s)",
+		strings.Join(statsfields, ","), strings.Join(statsvalues, ","))
+	db.Exec(statssql,
+		info.Ip,
+		info.Avg1min,
+		info.Avg5min,
+		info.Avg15min,
+		info.Buffers,
+		info.Cached,
+		info.MemTotal,
+		info.MemFree,
+		info.SwapTotal,
+		info.SwapUsed,
+		info.SwapFree,
+		info.Timestamp)
+	dinfofields := []string{
+		"host",
+		"mount",
+		"inodeused",
+		"diskused",
+		"created_time"}
+	dinfovalues := []string{}
+	for i := 0; i < len(dinfofields); i++ {
+		dinfovalues = append(dinfovalues, "?")
+	}
+	dinfosql := fmt.Sprintf("insert into diskinfo (%s) values (%s)",
+		strings.Join(dinfofields, ","), strings.Join(dinfovalues, ","))
+	for _, dinfo := range info.DiskInfo {
+		db.Exec(dinfosql,
+			info.Ip,
+			dinfo.Mount,
+			dinfo.InodeUsed,
+			dinfo.DiskUsed,
+			info.Timestamp)
+	}
 }

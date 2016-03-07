@@ -44,23 +44,41 @@ func main() {
 }
 
 func (ta *TcpAgent) run() {
-	for range time.NewTicker(time.Second).C {
+	for range time.NewTicker(2 * time.Second).C {
 		l, _ := nux.LoadAvg()
+		m, _ := nux.MemInfo()
+		mountPoints, _ := nux.ListMountPoint()
+		diskInfo := []util.DfInfo{}
+		for _, dev := range mountPoints {
+			du, _ := nux.BuildDeviceUsage(dev[0], dev[1], dev[2])
+			diskInfo = append(diskInfo,
+				util.DfInfo{
+					Mount:     du.FsFile,
+					InodeUsed: du.InodesUsedPercent,
+					DiskUsed:  du.BlocksUsedPercent,
+				})
+		}
+
 		info := util.Info{
-			Ip:       ta.localIp,
-			Avg1min:  l.Avg1min,
-			Avg5min:  l.Avg5min,
-			Avg15min: l.Avg15min,
+			Ip:        ta.localIp,
+			Avg1min:   l.Avg1min,
+			Avg5min:   l.Avg5min,
+			Avg15min:  l.Avg15min,
+			Buffers:   m.Buffers,
+			Cached:    m.Cached,
+			MemTotal:  m.MemTotal,
+			MemFree:   m.MemFree,
+			SwapTotal: m.SwapTotal,
+			SwapUsed:  m.SwapUsed,
+			SwapFree:  m.SwapFree,
+			DiskInfo:  diskInfo,
+			Timestamp: time.Now().Unix(),
 		}
 		b, _ := json.Marshal(info)
-		ta.ioBuf.Write(b)
-		ta.ioBuf.Write([]byte("\r\n"))
-		err := ta.ioBuf.Flush()
+		err := ta.writeLine(b)
 		if err != nil {
 			ta.ReConnect()
-			ta.ioBuf.Write(b)
-			ta.ioBuf.Write([]byte("\r\n"))
-			ta.ioBuf.Flush()
+			ta.writeLine(b)
 		}
 	}
 }
@@ -79,6 +97,12 @@ func NewTcpAgent() (ta *TcpAgent) {
 		}
 	}
 	return
+}
+
+func (ta *TcpAgent) writeLine(b []byte) error {
+	ta.ioBuf.Write(b)
+	ta.ioBuf.Write([]byte("\r\n"))
+	return ta.ioBuf.Flush()
 }
 
 func (ta *TcpAgent) ReConnect() {
