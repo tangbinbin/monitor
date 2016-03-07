@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 	"util"
 )
 
@@ -30,7 +31,7 @@ type TcpServer struct {
 	remoteAddr string
 	remoteIp   string
 	conn       net.Conn
-	ioBuf      *bufio.ReadWriter
+	ioBuf      *bufio.Reader
 }
 
 func init() {
@@ -56,14 +57,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("open listen port error:%v", err)
 	}
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Printf("accept error:%v", err)
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				log.Printf("accept error:%v", err)
+			}
+			tc := newTcpServer(conn)
+			go tc.run()
 		}
-		tc := newTcpServer(conn)
-		go tc.run()
-	}
+	}()
 	exitChan := make(chan os.Signal, 1)
 	signal.Notify(exitChan, syscall.SIGINT, syscall.SIGTERM)
 	<-exitChan
@@ -75,7 +78,7 @@ func newTcpServer(conn net.Conn) *TcpServer {
 		remoteAddr: conn.RemoteAddr().String(),
 		remoteIp:   strings.Split(conn.RemoteAddr().String(), ":")[0],
 		conn:       conn,
-		ioBuf:      bufio.NewReadWriter(bufio.NewReaderSize(conn, 1024), bufio.NewWriter(conn)),
+		ioBuf:      bufio.NewReaderSize(conn, 8192),
 	}
 }
 
@@ -97,8 +100,8 @@ func (tc *TcpServer) run() {
 }
 
 func saveInfo(info util.Info) {
-	ssql := "insert into avgload (host,load1,load5,load15) values (?,?, ?, ?)"
-	db.Exec(ssql, info.Ip, info.Avg1min, info.Avg5min, info.Avg15min)
+	ssql := "insert into avgload (host,load1,load5,load15,created_time) values (?,?,?,?,?)"
+	db.Exec(ssql, info.Ip, info.Avg1min, info.Avg5min, info.Avg15min, time.Now().Unix())
 }
 
 func (tc *TcpServer) read(b []byte) (err error) {
