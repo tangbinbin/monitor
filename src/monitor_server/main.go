@@ -103,19 +103,3 @@ func saveInfo(info util.Info) {
 	ssql := "insert into avgload (host,load1,load5,load15,created_time) values (?,?,?,?,?)"
 	db.Exec(ssql, info.Ip, info.Avg1min, info.Avg5min, info.Avg15min, time.Now().Unix())
 }
-
-func (tc *TcpServer) read(b []byte) (err error) {
-	total := 0
-	for {
-		var n int
-		n, err = tc.ioBuf.Read(b[total:])
-		if err != nil {
-			break
-		}
-		total += n
-		if total == len(b) {
-			break
-		}
-	}
-	return
-}
